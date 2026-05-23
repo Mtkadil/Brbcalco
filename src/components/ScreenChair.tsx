@@ -1,6 +1,6 @@
 import { useState, useRef, FormEvent } from 'react';
-import { motion } from 'motion/react';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ArrowLeft, Plus, RotateCcw } from 'lucide-react';
 import AnimatedCounter from './AnimatedCounter';
 import { CHAIR_NAMES_MAP } from '../types';
 
@@ -9,13 +9,46 @@ interface ScreenChairProps {
   total: number;
   history?: Array<{ id: string; amount: number; timestamp: string }>;
   onAddAmount: (amount: number) => Promise<void>;
+  onUndoRecentTransaction?: () => Promise<void>;
   onExit: () => void;
 }
 
-export default function ScreenChair({ chairNum, total, history = [], onAddAmount, onExit }: ScreenChairProps) {
+export default function ScreenChair({
+  chairNum,
+  total,
+  history = [],
+  onAddAmount,
+  onUndoRecentTransaction,
+  onExit
+}: ScreenChairProps) {
   const [customAmount, setCustomAmount] = useState('');
   const [triggerCountEffect, setTriggerCountEffect] = useState(false);
+  const [showUndoConfirm, setShowUndoConfirm] = useState(false);
+  const [isUndoing, setIsUndoing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleUndoConfirm = async () => {
+    if (onUndoRecentTransaction) {
+      setIsUndoing(true);
+      try {
+        await onUndoRecentTransaction();
+      } catch (err) {
+        console.error('Errore durante l\'annullamento:', err);
+      } finally {
+        setIsUndoing(false);
+        setShowUndoConfirm(false);
+      }
+    }
+  };
+
+  const recentTransaction = history.length > 0 ? history[0] : null;
+  const recentTransactionTime = recentTransaction
+    ? new Date(recentTransaction.timestamp).toLocaleTimeString('it-IT', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      })
+    : '';
 
   const handleQuickAdd = async (amount: number) => {
     setTriggerCountEffect(true);
@@ -105,29 +138,54 @@ export default function ScreenChair({ chairNum, total, history = [], onAddAmount
 
       {/* Daily Transaction History */}
       <div className="mb-8 text-left">
-        <h3 className="text-[10px] uppercase tracking-[0.2em] text-[#8E8E93] mb-3 font-semibold pl-1">
-          Cronologia del Giorno
-        </h3>
+        <div className="flex justify-between items-center mb-3 pl-1">
+          <h3 className="text-[10px] uppercase tracking-[0.2em] text-[#8E8E93] font-semibold">
+            Cronologia del Giorno
+          </h3>
+          {history.length > 0 && onUndoRecentTransaction && (
+            <button
+              type="button"
+              onClick={() => setShowUndoConfirm(true)}
+              className="text-[10px] uppercase tracking-wider text-red-500/90 hover:text-red-400 font-bold flex items-center gap-1 cursor-pointer select-none transition-colors border border-red-500/20 hover:border-red-500/40 bg-red-900/10 hover:bg-red-900/20 px-2.5 py-1 rounded-xl active:scale-95 duration-150"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Annulla Ultimo
+            </button>
+          )}
+        </div>
         {history.length === 0 ? (
           <div className="bg-white/5 border border-white/5 rounded-2xl py-5 px-4 text-center text-xs text-[#8E8E93]/60 italic font-sans">
             Nessuna operazione registrata oggi
           </div>
         ) : (
           <div className="space-y-2 max-h-44 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-            {history.map((item) => {
+            {history.map((item, index) => {
               const itemTime = new Date(item.timestamp).toLocaleTimeString('it-IT', {
                 hour: '2-digit',
                 minute: '2-digit',
                 second: '2-digit'
               });
+              const isRecent = index === 0;
               return (
                 <div
                   key={item.id}
-                  className="bg-white/5 border border-white/5 hover:bg-white/10 rounded-2xl px-4 py-3 flex justify-between items-center transition-all"
+                  className={`bg-white/5 border rounded-2xl px-4 py-3 flex justify-between items-center transition-all ${
+                    isRecent 
+                      ? 'border-emerald-500/30 bg-emerald-500/[0.02]' 
+                      : 'border-white/5'
+                  }`}
                 >
-                  <span className="text-[10px] uppercase font-mono tracking-widest text-[#8E8E93]">
-                    {itemTime}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {isRecent && (
+                      <span className="relative flex h-2 w-2 mr-0.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                    )}
+                    <span className="text-[10px] uppercase font-mono tracking-widest text-[#8E8E93]">
+                      {itemTime}
+                    </span>
+                  </div>
                   <span className="text-sm font-bold text-emerald-400 font-sans">
                     +{item.amount}€
                   </span>
@@ -147,6 +205,56 @@ export default function ScreenChair({ chairNum, total, history = [], onAddAmount
         <ArrowLeft className="w-4 h-4" />
         Esci dalla sedia
       </button>
+
+      {/* Custom Confirmation Modal for Undo */}
+      <AnimatePresence>
+        {showUndoConfirm && recentTransaction && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/60 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="w-full max-w-sm bg-stone-950 border border-red-500/30 p-6 rounded-2xl shadow-[0_10px_35px_rgba(239,68,68,0.15)] text-center"
+            >
+              <div className="w-12 h-12 rounded-full bg-red-950/50 border border-red-500/40 flex items-center justify-center mx-auto mb-4">
+                <RotateCcw className="w-6 h-6 text-red-500 animate-pulse" />
+              </div>
+
+              <h3 className="font-serif text-lg font-bold text-stone-100 tracking-wide mb-2 uppercase">
+                Annulla Operazione
+              </h3>
+              
+              <p className="text-xs text-stone-400 font-sans leading-relaxed mb-6">
+                Sei sicuro di voler eliminare l'ultima transazione di <strong className="text-red-400 font-semibold font-mono text-sm">+{recentTransaction.amount}€</strong> delle ore <span className="font-mono text-stone-200">{recentTransactionTime}</span>?<br />
+                Il totale della sedia verrà ricalcolato.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowUndoConfirm(false)}
+                  disabled={isUndoing}
+                  className="flex-1 bg-white/5 hover:bg-white/10 border border-white/5 text-stone-300 font-bold py-2 px-4 rounded-xl text-xs uppercase tracking-wider transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Annulla
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUndoConfirm}
+                  disabled={isUndoing}
+                  className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-red-950/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isUndoing ? (
+                    <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                  ) : (
+                    'Sì, Elimina'
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

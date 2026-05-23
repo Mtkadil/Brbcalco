@@ -151,6 +151,28 @@ export default function App() {
     }
   };
 
+  const handleUndoRecentTransaction = async () => {
+    if (!selectedChair) return;
+    const chairKey = `chair${selectedChair}`;
+    const currentObj = chairsData[chairKey] || { total: 0, history: [] };
+    const historyList = currentObj.history || [];
+    if (historyList.length === 0) return;
+
+    const [recentItem, ...remainingHistory] = historyList;
+    const newTotal = Math.max(0, currentObj.total - recentItem.amount);
+
+    try {
+      const chairRef = doc(db, 'chairs', chairKey);
+      await updateDoc(chairRef, {
+        total: newTotal,
+        updatedAt: serverTimestamp(),
+        history: remainingHistory,
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `chairs/${chairKey}`);
+    }
+  };
+
   const handleResetDailyData = async () => {
     for (let i = 1; i <= 4; i++) {
       const chairKey = `chair${i}`;
@@ -241,6 +263,7 @@ export default function App() {
                   total={chairsData[`chair${selectedChair}`]?.total || 0}
                   history={chairsData[`chair${selectedChair}`]?.history || []}
                   onAddAmount={handleAddAmount}
+                  onUndoRecentTransaction={handleUndoRecentTransaction}
                   onExit={() => {
                     if (isAdminMode) {
                       handleNavigate('admin-dashboard');

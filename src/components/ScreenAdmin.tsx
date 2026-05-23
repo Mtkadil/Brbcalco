@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, RefreshCw, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, RefreshCw, AlertTriangle, ShieldCheck, Download } from 'lucide-react';
 import AnimatedCounter from './AnimatedCounter';
 import { CHAIR_NAMES_MAP } from '../types';
 
@@ -39,6 +39,60 @@ export default function ScreenAdmin({ totals, histories = {}, onReset, onBack }:
       setCopiedKey(key);
       setTimeout(() => setCopiedKey(null), 2000);
     });
+  };
+
+  const handleExportCSV = () => {
+    const todayStr = new Date().toLocaleDateString('it-IT');
+    const todayTimeStr = new Date().toLocaleTimeString('it-IT');
+    
+    let csvContent = `BLOCK BARBER - Report Cassa\n`;
+    csvContent += `Esportato il:;${todayStr} alle ${todayTimeStr}\n\n`;
+    
+    // Summary Section
+    csvContent += `RIASSUNTO INCASSI\n`;
+    csvContent += `Sedia;Barbiere;Incasso Totale (€)\n`;
+    [1, 2, 3, 4].forEach((num) => {
+      const key = `chair${num}`;
+      const name = CHAIR_NAMES_MAP[num] || `Sedia ${num}`;
+      const total = totals[key] || 0;
+      csvContent += `Sedia 0${num};${name};${total}\n`;
+    });
+    csvContent += `TOTALE GENERALE;;${grandTotal}\n\n`;
+    
+    // Detailed Transactions Section
+    csvContent += `DETTAGLIO TRANSAZIONI\n`;
+    csvContent += `Timestamp;Sedia;Barbiere;Importo (€)\n`;
+    
+    let hasTransactions = false;
+    [1, 2, 3, 4].forEach((num) => {
+      const key = `chair${num}`;
+      const name = CHAIR_NAMES_MAP[num] || `Sedia ${num}`;
+      const list = histories[key] || [];
+      if (list.length > 0) {
+        hasTransactions = true;
+        list.forEach((item) => {
+          const itemTime = new Date(item.timestamp).toLocaleString('it-IT');
+          csvContent += `"${itemTime}";Sedia 0${num};${name};${item.amount}\n`;
+        });
+      }
+    });
+    
+    if (!hasTransactions) {
+      csvContent += `Nessuna transazione registrata per la giornata.;;;\n`;
+    }
+
+    // Convert to Blob with UTF-8 BOM so Excel opens Italian characters perfectly
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    const fileName = `BlockBarber_Cassa_${todayStr.replace(/\//g, '-')}.csv`;
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Compute Grand Total
@@ -262,21 +316,31 @@ export default function ScreenAdmin({ totals, histories = {}, onReset, onBack }:
         </div>
 
         {/* Grand Total section aligned with mockup styling */}
-        <div className="bg-white/5 border border-white/10 p-5 rounded-2xl mt-8 flex justify-between items-center shadow-[0_4px_25px_rgba(0,0,0,0.3)]">
+        <div className="bg-white/5 border border-white/10 p-5 rounded-2xl mt-8 flex flex-col sm:flex-row gap-4 justify-between sm:items-center shadow-[0_4px_25px_rgba(0,0,0,0.3)]">
           <div>
             <span className="text-[10px] uppercase tracking-widest text-[#8E8E93] block mb-0.5">Total Revenue</span>
             <span className="text-3xl font-semibold font-serif text-gold-primary tracking-tight">
               €<AnimatedCounter value={grandTotal} />
             </span>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowConfirm(true)}
-            className="border border-red-500/30 text-red-400 hover:text-white hover:bg-red-500/10 px-4 py-2.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer font-bold text-[10px] uppercase tracking-[0.22em]"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Reset
-          </button>
+          <div className="flex gap-2.5 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={handleExportCSV}
+              className="bg-gold-primary/10 hover:bg-gold-primary/20 text-gold-primary border border-gold-primary/20 hover:border-gold-primary/40 px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer font-bold text-[10px] uppercase tracking-[0.22em] flex-1 sm:flex-initial animate-fade-in"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Esporta CSV
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowConfirm(true)}
+              className="border border-red-500/30 text-red-500/80 hover:text-white hover:bg-red-500/10 px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer font-bold text-[10px] uppercase tracking-[0.22em] flex-1 sm:flex-initial"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Reset
+            </button>
+          </div>
         </div>
       </div>
 
