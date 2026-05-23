@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, RefreshCw, AlertTriangle, ShieldCheck, Download } from 'lucide-react';
+import { ArrowLeft, RefreshCw, AlertTriangle, ShieldCheck, Download, Lock, Eye, EyeOff } from 'lucide-react';
 import AnimatedCounter from './AnimatedCounter';
 import { CHAIR_NAMES_MAP } from '../types';
 
@@ -9,14 +9,37 @@ interface ScreenAdminProps {
   histories?: { [key: string]: Array<{ id: string; amount: number; timestamp: string }> };
   onReset: () => Promise<void>;
   onBack: () => void;
+  onPasswordsChange?: (passwords: { [key: string]: string }) => Promise<void>;
+  currentPasswords?: { [key: string]: string };
 }
 
-export default function ScreenAdmin({ totals, histories = {}, onReset, onBack }: ScreenAdminProps) {
+export default function ScreenAdmin({ 
+  totals, 
+  histories = {}, 
+  onReset, 
+  onBack,
+  onPasswordsChange,
+  currentPasswords = {}
+}: ScreenAdminProps) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [expandedChairs, setExpandedChairs] = useState<{ [key: string]: boolean }>({});
   const [showLinks, setShowLinks] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  
+  // Password management state
+  const [showPasswordSettings, setShowPasswordSettings] = useState(false);
+  const [passwordInputs, setPasswordInputs] = useState({
+    admin: currentPasswords.admin || 'admin123',
+    chair1: currentPasswords.chair1 || 'pass1',
+    chair2: currentPasswords.chair2 || 'pass2',
+    chair3: currentPasswords.chair3 || 'pass3',
+    chair4: currentPasswords.chair4 || 'pass4',
+  });
+  const [showPasswords, setShowPasswords] = useState<{ [key: string]: boolean }>({});
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [isSavingPasswords, setIsSavingPasswords] = useState(false);
 
   const getFullLink = (query: string) => {
     const origin = window.location.origin;
@@ -29,7 +52,6 @@ export default function ScreenAdmin({ totals, histories = {}, onReset, onBack }:
       setCopiedKey(key);
       setTimeout(() => setCopiedKey(null), 2000);
     }).catch(() => {
-      // safe fallback if iframe constraints block navigator.clipboard
       const tempInput = document.createElement('input');
       tempInput.value = text;
       document.body.appendChild(tempInput);
@@ -41,6 +63,45 @@ export default function ScreenAdmin({ totals, histories = {}, onReset, onBack }:
     });
   };
 
+  const handlePasswordInputChange = (key: string, value: string) => {
+    setPasswordInputs(prev => ({
+      ...prev,
+      [key]: value
+    }));
+    setPasswordError('');
+  };
+
+  const handleSavePasswords = async () => {
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    // Validation
+    const passwordKeys = Object.keys(passwordInputs);
+    for (const key of passwordKeys) {
+      const pwd = passwordInputs[key as keyof typeof passwordInputs];
+      if (!pwd || pwd.length < 3) {
+        setPasswordError(`La password per ${key} deve essere almeno 3 caratteri.`);
+        return;
+      }
+    }
+
+    setIsSavingPasswords(true);
+    try {
+      if (onPasswordsChange) {
+        await onPasswordsChange(passwordInputs);
+      }
+      setPasswordSuccess('Password aggiornate con successo!');
+      setTimeout(() => {
+        setPasswordSuccess('');
+      }, 3000);
+    } catch (error) {
+      setPasswordError('Errore nel salvataggio delle password. Riprova.');
+      console.error(error);
+    } finally {
+      setIsSavingPasswords(false);
+    }
+  };
+
   const handleExportCSV = () => {
     const todayStr = new Date().toLocaleDateString('it-IT');
     const todayTimeStr = new Date().toLocaleTimeString('it-IT');
@@ -48,7 +109,6 @@ export default function ScreenAdmin({ totals, histories = {}, onReset, onBack }:
     let csvContent = `BLOCK BARBER - Report Cassa\n`;
     csvContent += `Esportato il:;${todayStr} alle ${todayTimeStr}\n\n`;
     
-    // Summary Section
     csvContent += `RIASSUNTO INCASSI\n`;
     csvContent += `Sedia;Barbiere;Incasso Totale (€)\n`;
     [1, 2, 3, 4].forEach((num) => {
@@ -59,7 +119,6 @@ export default function ScreenAdmin({ totals, histories = {}, onReset, onBack }:
     });
     csvContent += `TOTALE GENERALE;;${grandTotal}\n\n`;
     
-    // Detailed Transactions Section
     csvContent += `DETTAGLIO TRANSAZIONI\n`;
     csvContent += `Timestamp;Sedia;Barbiere;Importo (€)\n`;
     
@@ -81,7 +140,6 @@ export default function ScreenAdmin({ totals, histories = {}, onReset, onBack }:
       csvContent += `Nessuna transazione registrata per la giornata.;;;\n`;
     }
 
-    // Convert to Blob with UTF-8 BOM so Excel opens Italian characters perfectly
     const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -211,6 +269,128 @@ export default function ScreenAdmin({ totals, histories = {}, onReset, onBack }:
           );
         })}
 
+        {/* PASSWORD SETTINGS SECTION */}
+        <div className="bg-white/5 border border-white/5 rounded-2xl p-4 mt-6 text-left">
+          <button
+            type="button"
+            onClick={() => setShowPasswordSettings(!showPasswordSettings)}
+            className="w-full flex justify-between items-center text-[10px] uppercase tracking-widest text-[#8E8E93] font-semibold font-sans cursor-pointer focus:outline-none"
+          >
+            <span className="flex items-center gap-1.5">
+              <Lock className="w-4 h-4" />
+              Gestione Password
+            </span>
+            <span className="text-gold-primary">{showPasswordSettings ? 'Nascondi ▲' : 'Mostra ▼'}</span>
+          </button>
+
+          <AnimatePresence>
+            {showPasswordSettings && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.25, ease: 'easeInOut' }}
+                className="overflow-hidden mt-4 space-y-4 pt-4 border-t border-white/5"
+              >
+                {/* Error Message */}
+                {passwordError && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-red-400 text-[11px]">
+                    {passwordError}
+                  </div>
+                )}
+
+                {/* Success Message */}
+                {passwordSuccess && (
+                  <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 text-emerald-400 text-[11px]">
+                    ✓ {passwordSuccess}
+                  </div>
+                )}
+
+                <p className="text-[10px] text-stone-400 font-sans leading-relaxed">
+                  Modifica le password di accesso per il pannello admin e per ogni postazione. Le password devono essere almeno 3 caratteri.
+                </p>
+
+                {/* Admin Password */}
+                <div className="space-y-2 pb-3 border-b border-white/5">
+                  <label className="text-[9px] uppercase tracking-wider text-red-400/80 font-bold block">
+                    🔐 Password Amministratore
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="flex-1 relative">
+                      <input
+                        type={showPasswords.admin ? 'text' : 'password'}
+                        value={passwordInputs.admin}
+                        onChange={(e) => handlePasswordInputChange('admin', e.target.value)}
+                        className="w-full bg-black/40 border border-white/5 rounded-xl px-3 py-2 text-[11px] text-white placeholder:text-stone-500 focus:border-gold-primary/50 focus:ring-1 focus:ring-gold-primary/30 outline-none transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswords(prev => ({ ...prev, admin: !prev.admin }))}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-500 hover:text-white transition-colors"
+                      >
+                        {showPasswords.admin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Chair Passwords */}
+                <div className="space-y-3">
+                  <label className="text-[9px] uppercase tracking-wider text-emerald-400/80 font-bold block">
+                    Password Postazioni
+                  </label>
+                  {[1, 2, 3, 4].map((num) => {
+                    const key = `chair${num}`;
+                    const chairKey = `chair${num}` as keyof typeof passwordInputs;
+                    return (
+                      <div key={num} className="flex items-center gap-2">
+                        <span className="text-[10px] text-stone-300 font-medium w-24 shrink-0 text-left">
+                          {CHAIR_NAMES_MAP[num]}:
+                        </span>
+                        <div className="flex-1 relative">
+                          <input
+                            type={showPasswords[key] ? 'text' : 'password'}
+                            value={passwordInputs[chairKey]}
+                            onChange={(e) => handlePasswordInputChange(key, e.target.value)}
+                            className="w-full bg-black/40 border border-white/5 rounded-xl px-3 py-2 text-[11px] text-white placeholder:text-stone-500 focus:border-gold-primary/50 focus:ring-1 focus:ring-gold-primary/30 outline-none transition-all"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPasswords(prev => ({ ...prev, [key]: !prev[key] }))}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-500 hover:text-white transition-colors"
+                          >
+                            {showPasswords[key] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Save Button */}
+                <button
+                  type="button"
+                  onClick={handleSavePasswords}
+                  disabled={isSavingPasswords}
+                  className="w-full bg-gold-primary hover:bg-gold-primary/90 disabled:bg-gold-primary/50 text-black font-semibold py-2.5 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 text-sm mt-4"
+                >
+                  {isSavingPasswords ? (
+                    <>
+                      <div className="w-4 h-4 rounded-full border-2 border-black/30 border-t-black animate-spin" />
+                      Salvataggio...
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      Salva Password
+                    </>
+                  )}
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
         {/* Isolated Device Links section for owner */}
         <div className="bg-white/5 border border-white/5 rounded-2xl p-4 mt-6 text-left">
           <button
@@ -327,7 +507,7 @@ export default function ScreenAdmin({ totals, histories = {}, onReset, onBack }:
             <button
               type="button"
               onClick={handleExportCSV}
-              className="bg-gold-primary/10 hover:bg-gold-primary/20 text-gold-primary border border-gold-primary/20 hover:border-gold-primary/40 px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer font-bold text-[10px] uppercase tracking-[0.22em] flex-1 sm:flex-initial animate-fade-in"
+              className="bg-gold-primary/10 hover:bg-gold-primary/20 text-gold-primary border border-gold-primary/20 hover:border-gold-primary/40 px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 text-xs font-semibold"
             >
               <Download className="w-3.5 h-3.5" />
               Esporta CSV
@@ -335,7 +515,7 @@ export default function ScreenAdmin({ totals, histories = {}, onReset, onBack }:
             <button
               type="button"
               onClick={() => setShowConfirm(true)}
-              className="border border-red-500/30 text-red-500/80 hover:text-white hover:bg-red-500/10 px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer font-bold text-[10px] uppercase tracking-[0.22em] flex-1 sm:flex-initial"
+              className="border border-red-500/30 text-red-500/80 hover:text-white hover:bg-red-500/10 px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 text-xs font-semibold"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               Reset
@@ -351,10 +531,10 @@ export default function ScreenAdmin({ totals, histories = {}, onReset, onBack }:
         className="text-[#8E8E93] hover:text-gold-primary text-xs tracking-wider uppercase flex items-center justify-center gap-1.5 mx-auto transition-colors cursor-pointer font-sans mt-8"
       >
         <ArrowLeft className="w-4 h-4" />
-        Torna alla Home
+        Logout
       </button>
 
-      {/* Custom Confirmation Modal overlay (Avoids blocking window.confirm issues in iframe) */}
+      {/* Custom Confirmation Modal overlay */}
       <AnimatePresence>
         {showConfirm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/60 backdrop-blur-md">
