@@ -1,5 +1,7 @@
 import { motion } from 'motion/react';
-import { Sparkles, DollarSign, Eye } from 'lucide-react';
+import { DollarSign, Eye } from 'lucide-react';
+// @ts-expect-error - image import handled by vite
+import logoImage from '../assets/images/block_barber_logo_1779524464059.png';
 
 interface ScreenHomeProps {
   onNavigate: (screen: 'selection-screen' | 'admin-dashboard') => void;
@@ -14,9 +16,14 @@ export default function ScreenHome({ onNavigate }: ScreenHomeProps) {
       transition={{ duration: 0.4, ease: 'easeOut' }}
       className="w-full text-center"
     >
-      <div className="flex justify-center mb-6">
-        <div className="relative p-5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md shadow-[0_0_20px_rgba(212,175,55,0.1)]">
-          <Sparkles className="h-8 w-8 text-gold-primary" />
+      <div className="flex justify-center mb-8">
+        <div className="relative p-2.5 rounded-3xl bg-white/5 border border-white/10 backdrop-blur-md shadow-[0_0_30px_rgba(215,180,60,0.1)]">
+          <img
+            src={logoImage}
+            alt="Block Barber Logo"
+            className="h-28 w-auto object-contain brightness-110 select-none pointer-events-none"
+            referrerPolicy="no-referrer"
+          />
         </div>
       </div>
 

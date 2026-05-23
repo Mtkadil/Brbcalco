@@ -4,6 +4,13 @@ export interface Chair {
   total: number;
 }
 
+export const CHAIR_NAMES_MAP: { [key: number]: string } = {
+  1: 'Amine',
+  2: 'Maher',
+  3: 'Adil',
+  4: 'Kevin'
+};
+
 export type ScreenType = 'home-screen' | 'selection-screen' | 'chair-screen' | 'admin-dashboard';
 
 export enum OperationType {

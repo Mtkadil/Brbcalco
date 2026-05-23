@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, RefreshCw, AlertTriangle, ShieldCheck } from 'lucide-react';
 import AnimatedCounter from './AnimatedCounter';
+import { CHAIR_NAMES_MAP } from '../types';
 
 interface ScreenAdminProps {
   totals: { [key: string]: number };
@@ -85,8 +86,8 @@ export default function ScreenAdmin({ totals, histories = {}, onReset, onBack }:
             <div key={num} className="bg-white/5 border border-white/5 p-4 rounded-2xl">
               <div className="flex justify-between items-center mb-2">
                 <div>
-                  <span className="font-serif text-sm text-stone-300 font-semibold">Sedia {num}</span>
-                  <span className="text-[9px] uppercase tracking-wider text-slate-500 font-mono ml-2">Station 0{num}</span>
+                  <span className="font-serif text-sm text-stone-300 font-semibold">{CHAIR_NAMES_MAP[num]}</span>
+                  <span className="text-[9px] uppercase tracking-wider text-slate-500 font-mono ml-2">Sedia 0{num}</span>
                 </div>
                 <span className="font-bold text-stone-100 font-sans">
                   €<AnimatedCounter value={val} />
@@ -213,7 +214,7 @@ export default function ScreenAdmin({ totals, histories = {}, onReset, onBack }:
                     const key = `chair_link_${num}`;
                     return (
                       <div key={num} className="flex items-center gap-2">
-                        <span className="text-[10px] text-stone-300 font-medium w-16 shrink-0">Sedia 0{num}:</span>
+                        <span className="text-[10px] text-stone-300 font-medium w-20 shrink-0 text-left">{CHAIR_NAMES_MAP[num]}:</span>
                         <input
                           type="text"
                           readOnly

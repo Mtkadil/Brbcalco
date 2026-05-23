@@ -1,5 +1,8 @@
 import { motion } from 'motion/react';
 import { ArrowLeft, Scissors } from 'lucide-react';
+import { CHAIR_NAMES_MAP } from '../types';
+// @ts-expect-error - image import handled by vite
+import logoImage from '../assets/images/block_barber_logo_1779524464059.png';
 
 interface ScreenSelectionProps {
   onSelectChair: (chairNum: number) => void;
@@ -8,27 +11,26 @@ interface ScreenSelectionProps {
 }
 
 export default function ScreenSelection({ onSelectChair, isAdminMode = false, onBack }: ScreenSelectionProps) {
-  const stationNames = [
-    'Master Sedia',
-    'Junior Stylist',
-    'Guest Chair',
-    'The Vault'
-  ];
-
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.98, y: 15 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.98, y: -15 }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
-      className="w-full text-center"
+      className="w-full text-center animate-fade-in"
     >
-      <h2 className="font-serif text-2xl font-bold tracking-[0.2em] text-gold-primary mb-1 uppercase">
-        Sedia
-      </h2>
-      <p className="font-sans text-[10px] tracking-[0.3em] uppercase text-[#8E8E93] mb-8">
+      <div className="flex justify-center mb-4">
+        <img
+          src={logoImage}
+          alt="Block Barber"
+          className="h-16 w-auto object-contain brightness-110 filter hover:scale-105 transition-transform duration-300"
+          referrerPolicy="no-referrer"
+        />
+      </div>
+
+      <h2 className="font-sans text-[10px] tracking-[0.3em] uppercase text-[#8E8E93] mb-8 font-semibold">
         Seleziona postazione di lavoro
-      </p>
+      </h2>
 
       <div className="grid grid-cols-1 gap-3.5 mb-8">
         {[1, 2, 3, 4].map((num) => (
@@ -42,8 +44,8 @@ export default function ScreenSelection({ onSelectChair, isAdminMode = false, on
                 <Scissors className="w-5 h-5 text-gold-primary" />
               </div>
               <div className="text-left">
-                <p className="text-[9px] uppercase tracking-widest text-[#8E8E93] font-mono">Station 0{num}</p>
-                <p className="font-serif text-base text-stone-200 group-hover:text-gold-primary transition-colors">{stationNames[num - 1]}</p>
+                <p className="text-[9px] uppercase tracking-widest text-[#8E8E93] font-mono">Postazione 0{num}</p>
+                <p className="font-serif text-base text-stone-200 group-hover:text-gold-primary transition-colors">{CHAIR_NAMES_MAP[num]}</p>
               </div>
             </div>
             <span className="text-stone-500 font-sans text-xs group-hover:text-stone-300 transition-colors">

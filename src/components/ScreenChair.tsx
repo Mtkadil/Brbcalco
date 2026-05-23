@@ -2,6 +2,7 @@ import { useState, useRef, FormEvent } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Plus } from 'lucide-react';
 import AnimatedCounter from './AnimatedCounter';
+import { CHAIR_NAMES_MAP } from '../types';
 
 interface ScreenChairProps {
   chairNum: number;
@@ -45,10 +46,10 @@ export default function ScreenChair({ chairNum, total, history = [], onAddAmount
       className="w-full text-center"
     >
       <h2 className="font-sans text-[10px] uppercase tracking-[0.3em] text-[#8E8E93] mb-1">
-        Postazione Attiva
+        Postazione di
       </h2>
-      <p className="font-serif text-2xl font-bold tracking-[2px] text-gold-primary uppercase mb-4">
-        Sedia {chairNum}
+      <p className="font-serif text-3xl font-bold tracking-[2px] text-gold-primary uppercase mb-4">
+        {CHAIR_NAMES_MAP[chairNum]}
       </p>
 
       {/* Large scale feedback counter wrapper */}
