@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Lock, AlertCircle } from 'lucide-react';
+import { Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 interface ScreenLoginProps {
   onPasswordSubmit: (password: string, chairNumber?: number) => void;
@@ -9,11 +9,11 @@ interface ScreenLoginProps {
 
 // Password configuration
 const PASSWORD_CONFIG = {
-  admin: 'admin123', // Admin/Proprietario password
-  chair1: 'pass1',   // Postazione 1
-  chair2: 'pass2',   // Postazione 2
-  chair3: 'pass3',   // Postazione 3
-  chair4: 'pass4',   // Postazione 4
+  admin: 'admin123',
+  chair1: 'pass1',
+  chair2: 'pass2',
+  chair3: 'pass3',
+  chair4: 'pass4',
 };
 
 export default function ScreenLogin({ onPasswordSubmit, isLoading, error }: ScreenLoginProps) {
@@ -28,14 +28,22 @@ export default function ScreenLogin({ onPasswordSubmit, isLoading, error }: Scre
 
   return (
     <div className="w-full flex flex-col justify-center items-center gap-6">
-      {/* Header */}
+      {/* Logo and Header */}
       <div className="text-center">
-        <div className="flex justify-center mb-4">
-          <div className="bg-gold-primary/20 p-4 rounded-2xl">
-            <Lock className="w-8 h-8 text-gold-primary" />
+        <div className="mb-6 text-center">
+          <h1 className="text-5xl md:text-6xl font-bold tracking-wider mb-2 font-serif">
+            <span className="text-black dark:text-white">BLOCK</span>
+            <br />
+            <span className="text-red-600">BARBER</span>
+          </h1>
+        </div>
+        
+        <div className="flex justify-center mb-6">
+          <div className="bg-red-600/20 p-4 rounded-2xl">
+            <Lock className="w-8 h-8 text-red-600" />
           </div>
         </div>
-        <h2 className="text-2xl font-bold font-serif text-gold-primary mb-2">
+        <h2 className="text-2xl font-bold font-serif text-red-600 mb-2">
           Accesso Protetto
         </h2>
         <p className="text-[13px] text-[#8E8E93]">
@@ -60,7 +68,7 @@ export default function ScreenLogin({ onPasswordSubmit, isLoading, error }: Scre
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-[#8E8E93] focus:outline-none focus:border-gold-primary/50 focus:ring-1 focus:ring-gold-primary/30 transition-all"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-[#8E8E93] focus:outline-none focus:border-red-600/50 focus:ring-1 focus:ring-red-600/30 transition-all"
             autoFocus
             disabled={isLoading}
           />
@@ -70,7 +78,7 @@ export default function ScreenLogin({ onPasswordSubmit, isLoading, error }: Scre
             className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8E8E93] hover:text-white transition-colors"
             disabled={isLoading}
           >
-            {showPassword ? '👁️' : '👁️‍🗨️'}
+            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
           </button>
         </div>
 
@@ -78,11 +86,11 @@ export default function ScreenLogin({ onPasswordSubmit, isLoading, error }: Scre
         <button
           type="submit"
           disabled={isLoading || password.length === 0}
-          className="w-full bg-gold-primary hover:bg-gold-primary/90 disabled:bg-gold-primary/50 text-black font-semibold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
+          className="w-full bg-red-600 hover:bg-red-700 disabled:bg-red-600/50 text-white font-semibold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
         >
           {isLoading ? (
             <>
-              <div className="w-4 h-4 rounded-full border-2 border-black/30 border-t-black animate-spin" />
+              <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
               Autenticazione...
             </>
           ) : (
@@ -95,6 +103,9 @@ export default function ScreenLogin({ onPasswordSubmit, isLoading, error }: Scre
       <div className="text-center mt-6 pt-6 border-t border-white/5 w-full">
         <p className="text-[11px] text-[#8E8E93] tracking-wide uppercase">
           Sistema di Sicurezza Attivo
+        </p>
+        <p className="text-[10px] text-[#8E8E93] mt-2">
+          Ideata e sviluppata da Adil Mtk
         </p>
       </div>
     </div>
