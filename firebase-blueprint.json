@@ -1,0 +1,39 @@
+{
+  "entities": {
+    "Chair": {
+      "title": "Chair",
+      "description": "Represents a barber chair and its live cash total for the day.",
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "number",
+          "description": "The current daily cash total of the chair."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp of the last update."
+        },
+        "history": {
+          "type": "array",
+          "description": "The transaction history of the day.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "amount": { "type": "number" },
+              "timestamp": { "type": "string" }
+            }
+          }
+        }
+      },
+      "required": ["total"]
+    }
+  },
+  "firestore": {
+    "chairs/{chairId}": {
+      "schema": "Chair",
+      "description": "The collection of barber chairs tracking live revenue."
+    }
+  }
+}
