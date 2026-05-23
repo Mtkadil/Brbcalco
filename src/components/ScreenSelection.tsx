@@ -3,10 +3,11 @@ import { ArrowLeft, Scissors } from 'lucide-react';
 
 interface ScreenSelectionProps {
   onSelectChair: (chairNum: number) => void;
+  isAdminMode?: boolean;
   onBack: () => void;
 }
 
-export default function ScreenSelection({ onSelectChair, onBack }: ScreenSelectionProps) {
+export default function ScreenSelection({ onSelectChair, isAdminMode = false, onBack }: ScreenSelectionProps) {
   const stationNames = [
     'Master Sedia',
     'Junior Stylist',
@@ -52,13 +53,19 @@ export default function ScreenSelection({ onSelectChair, onBack }: ScreenSelecti
         ))}
       </div>
 
-      <button
-        onClick={onBack}
-        className="text-[#8E8E93] hover:text-gold-primary text-xs tracking-wider uppercase flex items-center justify-center gap-1.5 mx-auto transition-colors cursor-pointer font-sans"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Torna alla Home
-      </button>
+      {isAdminMode ? (
+        <button
+          onClick={onBack}
+          className="text-[#8E8E93] hover:text-gold-primary text-xs tracking-wider uppercase flex items-center justify-center gap-1.5 mx-auto transition-colors cursor-pointer font-sans"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Torna alla Home
+        </button>
+      ) : (
+        <div className="text-[9px] uppercase tracking-[0.25em] text-[#8E8E93]/50">
+          Terminale Operatori &bull; Connesso alla Cassa
+        </div>
+      )}
     </motion.div>
   );
 }

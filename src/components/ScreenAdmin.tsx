@@ -14,6 +14,31 @@ export default function ScreenAdmin({ totals, histories = {}, onReset, onBack }:
   const [showConfirm, setShowConfirm] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [expandedChairs, setExpandedChairs] = useState<{ [key: string]: boolean }>({});
+  const [showLinks, setShowLinks] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const getFullLink = (query: string) => {
+    const origin = window.location.origin;
+    const pathname = window.location.pathname;
+    return query ? `${origin}${pathname}${query}` : `${origin}${pathname}`;
+  };
+
+  const handleCopy = (key: string, text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 2000);
+    }).catch(() => {
+      // safe fallback if iframe constraints block navigator.clipboard
+      const tempInput = document.createElement('input');
+      tempInput.value = text;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempInput);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 2000);
+    });
+  };
 
   // Compute Grand Total
   const t1 = totals.chair1 || 0;
@@ -130,6 +155,110 @@ export default function ScreenAdmin({ totals, histories = {}, onReset, onBack }:
             </div>
           );
         })}
+
+        {/* Isolated Device Links section for owner */}
+        <div className="bg-white/5 border border-white/5 rounded-2xl p-4 mt-6 text-left">
+          <button
+            type="button"
+            onClick={() => setShowLinks(!showLinks)}
+            className="w-full flex justify-between items-center text-[10px] uppercase tracking-widest text-[#8E8E93] font-semibold font-sans cursor-pointer focus:outline-none"
+          >
+            <span className="flex items-center gap-1.5">🔗 Collegamenti di Accesso Separati</span>
+            <span className="text-gold-primary">{showLinks ? 'Nascondi ▲' : 'Mostra ▼'}</span>
+          </button>
+
+          <AnimatePresence>
+            {showLinks && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.25, ease: 'easeInOut' }}
+                className="overflow-hidden mt-4 space-y-4 pt-4 border-t border-white/5"
+              >
+                <p className="text-[10px] text-stone-400 font-sans leading-relaxed">
+                  Condividi link differenti con i tuoi collaboratori e i tablet delle poltrone per isolare la sicurezza mantenendo la sincronizzazione attiva in tempo reale.
+                </p>
+
+                {/* Staff Selection Link */}
+                <div className="space-y-1">
+                  <span className="text-[9px] uppercase tracking-wider text-amber-500/80 font-bold block">
+                    Portale Staff (Selezione Sedia)
+                  </span>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={getFullLink('')}
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                      className="flex-1 bg-black/40 border border-white/5 rounded-xl px-3 py-1.5 text-[11px] text-stone-400 font-mono outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleCopy('staff', getFullLink(''))}
+                      className="bg-gold-primary/10 hover:bg-gold-primary/20 text-gold-primary border border-gold-primary/20 px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-colors shrink-0"
+                    >
+                      {copiedKey === 'staff' ? 'Copiato!' : 'Copia'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Individual Chairs Links */}
+                <div className="space-y-2 pt-1 border-t border-white/5">
+                  <span className="text-[9px] uppercase tracking-wider text-emerald-500/80 font-bold block">
+                    Link Diretti Tablet (Postazione Singola)
+                  </span>
+                  {[1, 2, 3, 4].map((num) => {
+                    const l = getFullLink(`?chair=${num}`);
+                    const key = `chair_link_${num}`;
+                    return (
+                      <div key={num} className="flex items-center gap-2">
+                        <span className="text-[10px] text-stone-300 font-medium w-16 shrink-0">Sedia 0{num}:</span>
+                        <input
+                          type="text"
+                          readOnly
+                          value={l}
+                          onClick={(e) => (e.target as HTMLInputElement).select()}
+                          className="flex-1 bg-black/40 border border-white/5 rounded-xl px-3 py-1.5 text-[11px] text-stone-400 font-mono outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(key, l)}
+                          className="bg-white/5 hover:bg-white/10 border border-white/5 px-2.5 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-colors shrink-0"
+                        >
+                          {copiedKey === key ? 'Copiato!' : 'Copia'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Owner Admin Link */}
+                <div className="space-y-1 pt-1 border-t border-white/5">
+                  <span className="text-[9px] uppercase tracking-wider text-red-400 font-bold block">
+                    Link Amministratore (Questo Pannello)
+                  </span>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={getFullLink('?role=owner')}
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                      className="flex-1 bg-black/40 border border-red-500/20 rounded-xl px-3 py-1.5 text-[11px] text-stone-400 font-mono outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleCopy('owner', getFullLink('?role=owner'))}
+                      className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-colors shrink-0"
+                    >
+                      {copiedKey === 'owner' ? 'Copiato!' : 'Copia'}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* Grand Total section aligned with mockup styling */}
         <div className="bg-white/5 border border-white/10 p-5 rounded-2xl mt-8 flex justify-between items-center shadow-[0_4px_25px_rgba(0,0,0,0.3)]">

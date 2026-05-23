@@ -26,6 +26,7 @@ export default function App() {
     chair4: { total: 0, history: [] },
   });
 
+  const [isAdminMode, setIsAdminMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   // 1. Initial document check & connection boot
@@ -82,14 +83,25 @@ export default function App() {
     };
   }, []);
 
-  // 3. Process URL Query specifications (?chair=X)
+  // 3. Process URL Query specifications (?chair=X) & Roles (?role=owner)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const chairParam = params.get('chair');
-    if (chairParam && ['1', '2', '3', '4'].includes(chairParam)) {
+    const roleParam = params.get('role');
+    const modeParam = params.get('mode');
+    
+    const isOwner = roleParam === 'owner' || modeParam === 'admin';
+    setIsAdminMode(isOwner);
+
+    if (isOwner) {
+      setCurrentScreen('admin-dashboard');
+    } else if (chairParam && ['1', '2', '3', '4'].includes(chairParam)) {
       const num = parseInt(chairParam, 10);
       setSelectedChair(num);
       setCurrentScreen('chair-screen');
+    } else {
+      // Operators / barbiere are routed directly to selection-screen to completely isolate landing from owner choices
+      setCurrentScreen('selection-screen');
     }
   }, []);
 
@@ -98,13 +110,18 @@ export default function App() {
     setCurrentScreen(screen);
     if (screen === 'home-screen') {
       setSelectedChair(null);
-      window.history.pushState({}, '', window.location.pathname);
+      if (isAdminMode) {
+        window.history.pushState({}, '', '?role=owner');
+      } else {
+        window.history.pushState({}, '', window.location.pathname);
+      }
     }
   };
 
   const handleSelectChair = (num: number) => {
     setSelectedChair(num);
     setCurrentScreen('chair-screen');
+    // Maintain direct chair path so bookmarking works
     window.history.pushState({}, '', `?chair=${num}`);
   };
 
@@ -211,6 +228,7 @@ export default function App() {
               <div key="selection" className="w-full">
                 <ScreenSelection
                   onSelectChair={handleSelectChair}
+                  isAdminMode={isAdminMode}
                   onBack={() => handleNavigate('home-screen')}
                 />
               </div>
@@ -223,7 +241,15 @@ export default function App() {
                   total={chairsData[`chair${selectedChair}`]?.total || 0}
                   history={chairsData[`chair${selectedChair}`]?.history || []}
                   onAddAmount={handleAddAmount}
-                  onExit={() => handleNavigate('home-screen')}
+                  onExit={() => {
+                    if (isAdminMode) {
+                      handleNavigate('admin-dashboard');
+                    } else {
+                      setSelectedChair(null);
+                      setCurrentScreen('selection-screen');
+                      window.history.pushState({}, '', window.location.pathname);
+                    }
+                  }}
                 />
               </div>
             )}
