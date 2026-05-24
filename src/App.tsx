@@ -217,7 +217,7 @@ export default function App() {
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-8">
           <div>
             <h1 className="text-2xl md:text-3xl font-black tracking-[0.1em] uppercase mb-1 font-sans text-gold-primary">
-              Momo Block Barber
+              MoMo BloCk BARber
             </h1>
             <p className="text-[9px] tracking-[0.3em] uppercase text-[#8E8E93]">
               Luxury Cash Live &bull; Management App
@@ -300,7 +300,7 @@ export default function App() {
         <footer className="flex flex-col sm:flex-row justify-between items-center gap-2 text-[9px] uppercase tracking-[0.3em] text-[#8E8E93] border-t border-white/5 pt-6 mt-8">
           <div>Firmware: v2.4.0-lux</div>
           <div className="flex gap-4">
-            <span>Device ID: PRINCE_01_X</span>
+            <span>Device ID: MOMO_BLOCK_BARBER_01_X</span>
             <span className="hidden sm:inline">&bull;</span>
             <span>Encrypted Node Connection</span>
           </div>
