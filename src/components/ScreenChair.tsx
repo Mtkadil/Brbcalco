@@ -11,6 +11,7 @@ interface ScreenChairProps {
   onAddAmount: (amount: number) => Promise<void>;
   onUndoRecentTransaction?: () => Promise<void>;
   onExit: () => void;
+  isAdminMode?: boolean;
 }
 
 export default function ScreenChair({
@@ -19,21 +20,26 @@ export default function ScreenChair({
   history = [],
   onAddAmount,
   onUndoRecentTransaction,
-  onExit
+  onExit,
+  isAdminMode = false
 }: ScreenChairProps) {
   const [customAmount, setCustomAmount] = useState('');
   const [triggerCountEffect, setTriggerCountEffect] = useState(false);
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
   const [isUndoing, setIsUndoing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleUndoConfirm = async () => {
     if (onUndoRecentTransaction) {
       setIsUndoing(true);
+      setSaveError('');
       try {
         await onUndoRecentTransaction();
       } catch (err) {
         console.error('Errore durante l\'annullamento:', err);
+        setSaveError("Impossibile annullare l'operazione. Verifica la connessione.");
       } finally {
         setIsUndoing(false);
         setShowUndoConfirm(false);
@@ -51,22 +57,44 @@ export default function ScreenChair({
     : '';
 
   const handleQuickAdd = async (amount: number) => {
+    if (isSaving) return;
+    setSaveError('');
+    setIsSaving(true);
     setTriggerCountEffect(true);
     setTimeout(() => setTriggerCountEffect(false), 200);
-    await onAddAmount(amount);
+    try {
+      await onAddAmount(amount);
+    } catch (err) {
+      console.error('Errore durante il salvataggio rapido:', err);
+      setSaveError("Connessione instabile. Riprova a premere il bottone.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCustomAdd = async (e: FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
+    setSaveError('');
     const amount = parseFloat(customAmount);
     if (!isNaN(amount) && amount > 0) {
+      setIsSaving(true);
       setTriggerCountEffect(true);
       setTimeout(() => setTriggerCountEffect(false), 200);
-      await onAddAmount(amount);
-      setCustomAmount('');
-      if (inputRef.current) {
-        inputRef.current.blur(); // Closes software keyboard on mobile
+      try {
+        await onAddAmount(amount);
+        setCustomAmount('');
+        if (inputRef.current) {
+          inputRef.current.blur(); // Closes software keyboard on mobile
+        }
+      } catch (err) {
+        console.error('Errore durante il salvataggio custom:', err);
+        setSaveError("Connessione instabile. Riprova a premere il bottone.");
+      } finally {
+        setIsSaving(false);
       }
+    } else {
+      setSaveError("Inserisci una cifra valida superiore a 0.");
     }
   };
 
@@ -103,11 +131,12 @@ export default function ScreenChair({
             <button
               key={amount}
               type="button"
+              disabled={isSaving}
               onClick={() => handleQuickAdd(amount)}
               className={
                 isPremium
-                  ? "bg-gradient-to-br from-[#D4AF37] via-[#FCF6BA] to-[#B38728] text-black font-extrabold rounded-2xl py-6 text-2xl shadow-lg shadow-amber-950/20 active:scale-95 transition-all cursor-pointer font-sans"
-                  : "bg-white/10 hover:bg-white/15 border border-white/5 text-white font-bold rounded-2xl py-6 text-2xl active:scale-95 transition-all cursor-pointer font-sans"
+                  ? "bg-gradient-to-br from-[#D4AF37] via-[#FCF6BA] to-[#B38728] text-black font-extrabold rounded-2xl py-6 text-2xl shadow-lg shadow-amber-950/20 active:scale-95 disabled:scale-100 disabled:opacity-40 transition-all cursor-pointer font-sans"
+                  : "bg-white/10 hover:bg-white/15 border border-white/5 text-white font-bold rounded-2xl py-6 text-2xl active:scale-95 disabled:scale-100 disabled:opacity-40 transition-all cursor-pointer font-sans"
               }
             >
               +{amount}€
@@ -116,6 +145,21 @@ export default function ScreenChair({
         })}
       </div>
 
+      {/* Local Save Error Banner */}
+      <AnimatePresence>
+        {saveError && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, scale: 0.95 }}
+            animate={{ opacity: 1, height: 'auto', scale: 1 }}
+            exit={{ opacity: 0, height: 0, scale: 0.95 }}
+            className="bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl p-3.5 mb-5 text-[11px] font-semibold text-left font-sans flex items-start gap-2.5"
+          >
+            <span>⚠️</span>
+            <span className="leading-relaxed flex-1">{saveError}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Custom Amount Form */}
       <form onSubmit={handleCustomAdd} className="flex gap-2.5 mb-8">
         <input
@@ -123,15 +167,21 @@ export default function ScreenChair({
           type="number"
           placeholder="Altra Cifra"
           inputMode="numeric"
+          disabled={isSaving}
           value={customAmount}
           onChange={(e) => setCustomAmount(e.target.value)}
-          className="flex-1 min-w-0 bg-black/40 border border-white/10 focus:border-[#D4AF37] rounded-2xl px-5 py-4 text-center text-xl text-[#D4AF37] placeholder:text-[#8E8E93]/30 focus:outline-none transition-all font-sans"
+          className="flex-1 min-w-0 bg-black/40 border border-white/10 focus:border-[#D4AF37] rounded-2xl px-5 py-4 text-center text-xl text-[#D4AF37] placeholder:text-[#8E8E93]/30 focus:outline-none disabled:opacity-40 transition-all font-sans"
         />
         <button
           type="submit"
-          className="bg-white/10 border border-white/10 hover:bg-white/15 text-white hover:text-white font-semibold rounded-2xl px-6 active:scale-95 transition-all flex items-center justify-center gap-1 cursor-pointer font-sans text-xs whitespace-nowrap uppercase tracking-wider"
+          disabled={isSaving}
+          className="bg-white/10 border border-white/10 hover:bg-white/15 text-white hover:text-white font-semibold rounded-2xl px-6 active:scale-95 disabled:scale-100 disabled:opacity-40 transition-all flex items-center justify-center gap-1.5 cursor-pointer font-sans text-xs whitespace-nowrap uppercase tracking-wider"
         >
-          <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+          {isSaving ? (
+            <div className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+          ) : (
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+          )}
           Custom
         </button>
       </form>
@@ -196,15 +246,21 @@ export default function ScreenChair({
         )}
       </div>
 
-      {/* Back button */}
-      <button
-        type="button"
-        onClick={onExit}
-        className="text-[#8E8E93] hover:text-gold-primary text-xs tracking-wider uppercase flex items-center justify-center gap-1.5 mx-auto transition-colors cursor-pointer font-sans"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Esci dalla sedia
-      </button>
+      {/* Back button only visible to Admin/Owner */}
+      {isAdminMode ? (
+        <button
+          type="button"
+          onClick={onExit}
+          className="text-[#8E8E93] hover:text-gold-primary text-xs tracking-wider uppercase flex items-center justify-center gap-1.5 mx-auto transition-colors cursor-pointer font-sans"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Torna alla Dashboard Owner
+        </button>
+      ) : (
+        <div className="text-[9px] uppercase tracking-[0.25em] text-red-500/60 font-medium font-sans">
+          Sessione Protetta &bull; Usa "Blocca" in alto per uscire
+        </div>
+      )}
 
       {/* Custom Confirmation Modal for Undo */}
       <AnimatePresence>

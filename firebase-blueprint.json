@@ -28,12 +28,29 @@
         }
       },
       "required": ["total"]
+    },
+    "SettingsPins": {
+      "title": "SettingsPins",
+      "description": "Represents the security configuration PINs for access control.",
+      "type": "object",
+      "properties": {
+        "owner": { "type": "string", "description": "PIN code for owner" },
+        "chair1": { "type": "string", "description": "PIN code for Chair 1" },
+        "chair2": { "type": "string", "description": "PIN code for Chair 2" },
+        "chair3": { "type": "string", "description": "PIN code for Chair 3" },
+        "chair4": { "type": "string", "description": "PIN code for Chair 4" }
+      },
+      "required": ["owner", "chair1", "chair2", "chair3", "chair4"]
     }
   },
   "firestore": {
     "chairs/{chairId}": {
       "schema": "Chair",
       "description": "The collection of barber chairs tracking live revenue."
+    },
+    "settings/{docId}": {
+      "schema": "SettingsPins",
+      "description": "Global custom configurations such as password PINs."
     }
   }
 }

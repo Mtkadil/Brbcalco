@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { doc, onSnapshot, updateDoc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { LogOut } from 'lucide-react';
 import { db, handleFirestoreError } from './firebase';
 import { OperationType, ScreenType } from './types';
 
@@ -9,10 +10,12 @@ import ScreenHome from './components/ScreenHome';
 import ScreenSelection from './components/ScreenSelection';
 import ScreenChair from './components/ScreenChair';
 import ScreenAdmin from './components/ScreenAdmin';
+import ScreenLogin from './components/ScreenLogin';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('home-screen');
   const [selectedChair, setSelectedChair] = useState<number | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   
   const [chairsData, setChairsData] = useState<{
     [key: string]: {
@@ -28,6 +31,20 @@ export default function App() {
 
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  const [pinsData, setPinsData] = useState<{
+    owner: string;
+    chair1: string;
+    chair2: string;
+    chair3: string;
+    chair4: string;
+  }>({
+    owner: '0000',
+    chair1: '1111',
+    chair2: '2222',
+    chair3: '3333',
+    chair4: '4444',
+  });
 
   // 1. Initial document check & connection boot
   useEffect(() => {
@@ -45,10 +62,66 @@ export default function App() {
           console.warn(`Initial check for ${id} returned:`, error);
         }
       }
+
+      // Initialize settings/pins immediately if missing on Firestore
+      try {
+        const pinsRef = doc(db, 'settings', 'pins');
+        const pinsSnap = await getDoc(pinsRef);
+        if (!pinsSnap.exists()) {
+          await setDoc(pinsRef, {
+            owner: '0000',
+            chair1: '1111',
+            chair2: '2222',
+            chair3: '3333',
+            chair4: '4444',
+          });
+        }
+      } catch (error) {
+        console.warn('Initial check for settings/pins returned:', error);
+      }
+
       setIsLoading(false);
     }
     initDatabaseDocs();
   }, []);
+
+  // Subscribe to real-time custom PIN adjustments
+  useEffect(() => {
+    const pathStr = 'settings/pins';
+    const unsub = onSnapshot(
+      doc(db, 'settings', 'pins'),
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setPinsData({
+            owner: typeof data?.owner === 'string' ? data.owner : '0000',
+            chair1: typeof data?.chair1 === 'string' ? data.chair1 : '1111',
+            chair2: typeof data?.chair2 === 'string' ? data.chair2 : '2222',
+            chair3: typeof data?.chair3 === 'string' ? data.chair3 : '3333',
+            chair4: typeof data?.chair4 === 'string' ? data.chair4 : '4444',
+          });
+        }
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, pathStr);
+      }
+    );
+    return () => unsub();
+  }, []);
+
+  const handleUpdatePins = async (newPins: {
+    owner: string;
+    chair1: string;
+    chair2: string;
+    chair3: string;
+    chair4: string;
+  }) => {
+    try {
+      await setDoc(doc(db, 'settings', 'pins'), newPins);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'settings/pins');
+    }
+  };
 
   // 2. Setup real-time subscribers for both security and live data synchronization
   useEffect(() => {
@@ -100,10 +173,31 @@ export default function App() {
       setSelectedChair(num);
       setCurrentScreen('chair-screen');
     } else {
-      // Operators / barbiere are routed directly to selection-screen to completely isolate landing from owner choices
       setCurrentScreen('selection-screen');
     }
   }, []);
+
+  const handleLoginSuccess = (role: 'owner' | 'barber', chairNum?: number) => {
+    setIsAuthenticated(true);
+    if (role === 'owner') {
+      setIsAdminMode(true);
+      setCurrentScreen('admin-dashboard');
+      window.history.pushState({}, '', '?role=owner');
+    } else if (role === 'barber' && chairNum) {
+      setIsAdminMode(false);
+      setSelectedChair(chairNum);
+      setCurrentScreen('chair-screen');
+      window.history.pushState({}, '', `?chair=${chairNum}`);
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setSelectedChair(null);
+    setIsAdminMode(false);
+    setCurrentScreen('home-screen');
+    window.history.pushState({}, '', window.location.pathname);
+  };
 
   // Navigation controller with browser state sync
   const handleNavigate = (screen: ScreenType) => {
@@ -141,7 +235,7 @@ export default function App() {
 
     try {
       const chairRef = doc(db, 'chairs', chairKey);
-      await updateDoc(chairRef, {
+      await setDoc(chairRef, {
         total: newTotal,
         updatedAt: serverTimestamp(),
         history: newHistory,
@@ -163,7 +257,7 @@ export default function App() {
 
     try {
       const chairRef = doc(db, 'chairs', chairKey);
-      await updateDoc(chairRef, {
+      await setDoc(chairRef, {
         total: newTotal,
         updatedAt: serverTimestamp(),
         history: remainingHistory,
@@ -178,7 +272,7 @@ export default function App() {
       const chairKey = `chair${i}`;
       try {
         const chairRef = doc(db, 'chairs', chairKey);
-        await updateDoc(chairRef, {
+        await setDoc(chairRef, {
           total: 0,
           updatedAt: serverTimestamp(),
           history: [],
@@ -217,20 +311,30 @@ export default function App() {
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-8">
           <div>
             <h1 className="text-2xl md:text-3xl font-black tracking-[0.1em] uppercase mb-1 font-sans text-gold-primary">
-              MoMo BloCk BARber
+              Momo Block Barber
             </h1>
             <p className="text-[9px] tracking-[0.3em] uppercase text-[#8E8E93]">
               Luxury Cash Live &bull; Management App
             </p>
           </div>
-          <div className="flex gap-3 w-full sm:w-auto">
-            <div className="bg-white/5 border border-white/10 backdrop-blur-md px-4 py-2 rounded-xl flex items-center gap-2.5 flex-1 sm:flex-initial">
+          <div className="flex gap-3 w-full sm:w-auto items-center">
+            {isAuthenticated && (
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:border-red-500/40 px-3.5 py-2 rounded-xl text-[9px] uppercase tracking-widest font-mono font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 h-[34px] active:scale-95 duration-100"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                Blocca
+              </button>
+            )}
+            <div className="bg-white/5 border border-white/10 backdrop-blur-md px-4 py-2 rounded-xl flex items-center gap-2.5 flex-1 sm:flex-initial h-[34px]">
               <div className="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_8px_#22c55e]"></div>
               <span className="text-[9px] uppercase tracking-widest text-[#8E8E93] font-semibold">Live Sync Active</span>
             </div>
-            <div className="bg-white/5 border border-white/10 backdrop-blur-md px-4 py-2 rounded-xl text-center flex-1 sm:flex-initial">
-              <span className="text-[9px] uppercase tracking-widest text-[#8E8E93] block">Today</span>
-              <p className="font-semibold text-xs tracking-wider">{formattedHeaderDate}</p>
+            <div className="bg-white/5 border border-white/10 backdrop-blur-md px-4 py-2 rounded-xl text-center flex-1 sm:flex-initial h-[34px] flex flex-col justify-center">
+              <span className="text-[9px] uppercase tracking-widest text-[#8E8E93] block leading-none mb-0.5">Today</span>
+              <p className="font-semibold text-[10px] tracking-wider leading-none">{formattedHeaderDate}</p>
             </div>
           </div>
         </header>
@@ -238,15 +342,33 @@ export default function App() {
         {/* Primary Container card styling with custom boundaries */}
         <div className="w-full max-w-md mx-auto bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 md:p-8 shadow-[0_12px_45px_rgba(0,0,0,0.6)] min-h-[460px] flex flex-col justify-center my-auto">
           <AnimatePresence mode="wait">
-            {currentScreen === 'home-screen' && (
+            {!isAuthenticated ? (
+              <div key="login" className="w-full">
+                <ScreenLogin
+                  onLoginSuccess={handleLoginSuccess}
+                  pinsData={pinsData}
+                />
+              </div>
+            ) : !isAdminMode ? (
+              /* IF BARBER => STRONGLY LOCK TO ASSIGNED CHAIR ONLY! No spy, no navigation */
+              <div key="chair" className="w-full">
+                <ScreenChair
+                  chairNum={selectedChair || 1}
+                  total={chairsData[`chair${selectedChair || 1}`]?.total || 0}
+                  history={chairsData[`chair${selectedChair || 1}`]?.history || []}
+                  onAddAmount={handleAddAmount}
+                  onUndoRecentTransaction={handleUndoRecentTransaction}
+                  isAdminMode={false}
+                  onExit={() => {}}
+                />
+              </div>
+            ) : currentScreen === 'home-screen' ? (
               <div key="home" className="w-full">
                 <ScreenHome
                   onNavigate={(screen) => handleNavigate(screen)}
                 />
               </div>
-            )}
-
-            {currentScreen === 'selection-screen' && (
+            ) : currentScreen === 'selection-screen' ? (
               <div key="selection" className="w-full">
                 <ScreenSelection
                   onSelectChair={handleSelectChair}
@@ -254,9 +376,8 @@ export default function App() {
                   onBack={() => handleNavigate('home-screen')}
                 />
               </div>
-            )}
-
-            {currentScreen === 'chair-screen' && selectedChair !== null && (
+            ) : currentScreen === 'chair-screen' && selectedChair !== null ? (
+              /* If Admin/Owner is inspecting a sedia */
               <div key="chair" className="w-full">
                 <ScreenChair
                   chairNum={selectedChair}
@@ -264,20 +385,15 @@ export default function App() {
                   history={chairsData[`chair${selectedChair}`]?.history || []}
                   onAddAmount={handleAddAmount}
                   onUndoRecentTransaction={handleUndoRecentTransaction}
+                  isAdminMode={true}
                   onExit={() => {
-                    if (isAdminMode) {
-                      handleNavigate('admin-dashboard');
-                    } else {
-                      setSelectedChair(null);
-                      setCurrentScreen('selection-screen');
-                      window.history.pushState({}, '', window.location.pathname);
-                    }
+                    setSelectedChair(null);
+                    setCurrentScreen('admin-dashboard');
+                    window.history.pushState({}, '', '?role=owner');
                   }}
                 />
               </div>
-            )}
-
-            {currentScreen === 'admin-dashboard' && (
+            ) : currentScreen === 'admin-dashboard' ? (
               <div key="admin" className="w-full">
                 <ScreenAdmin
                   totals={Object.keys(chairsData).reduce((acc, key) => {
@@ -290,21 +406,27 @@ export default function App() {
                   }, {} as { [key: string]: Array<{ id: string; amount: number; timestamp: string }> })}
                   onReset={handleResetDailyData}
                   onBack={() => handleNavigate('home-screen')}
+                  pinsData={pinsData}
+                  onUpdatePins={handleUpdatePins}
                 />
               </div>
-            )}
+            ) : null}
           </AnimatePresence>
         </div>
 
         {/* Bottom Status Bar */}
-        <footer className="flex flex-col sm:flex-row justify-between items-center gap-2 text-[9px] uppercase tracking-[0.3em] text-[#8E8E93] border-t border-white/5 pt-6 mt-8">
-          <div>Firmware: v2.4.0-lux</div>
+        <footer className="flex flex-col sm:flex-row justify-between items-center gap-2 text-[9px] uppercase tracking-[0.3em] text-[#8E8E93] border-t border-[#ffffff]/10 pt-6 mt-8">
+          <div className="text-stone-500 font-medium">Creato da Adil Mtk</div>
           <div className="flex gap-4">
-            <span>Device ID: MOMO_BLOCK_BARBER_01_X</span>
+            <span>Device ID: PRINCE_01_X</span>
             <span className="hidden sm:inline">&bull;</span>
-            <span>Encrypted Node Connection</span>
+            <span>Secure Connection</span>
           </div>
-          <div className="text-[#D4AF37] font-semibold">Authenticated: Proprietario</div>
+          <div className="text-[#D4AF37] font-semibold">
+            {isAuthenticated 
+              ? `Authenticated: ${isAdminMode ? 'Proprietario' : 'Barbiere'}` 
+              : 'Lock Stat: Bloccato'}
+          </div>
         </footer>
       </div>
     </div>

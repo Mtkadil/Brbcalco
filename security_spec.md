@@ -1,4 +1,4 @@
-# Security Specification: MoMo BloCk BARber Cash Live
+# Security Specification: The Prince Cash Live
 
 ## 1. Data Invariants
 - A chair document must have a `total` field of type `number` which must be `>= 0` and `<= 1000000`.

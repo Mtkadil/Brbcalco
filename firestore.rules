@@ -44,5 +44,21 @@ service cloud.firestore {
       // Allow updating chair documents only if the ID is valid and the schema/totals are strictly validated
       allow update: if isValidId(chairId) && isValidChair(incoming());
     }
+
+    // Helper to validate the system pin configurations
+    function isValidPins(data) {
+      return data.owner is string && data.owner.size() == 4
+        && data.chair1 is string && data.chair1.size() == 4
+        && data.chair2 is string && data.chair2.size() == 4
+        && data.chair3 is string && data.chair3.size() == 4
+        && data.chair4 is string && data.chair4.size() == 4
+        && data.keys().hasAll(['owner', 'chair1', 'chair2', 'chair3', 'chair4'])
+        && data.keys().hasOnly(['owner', 'chair1', 'chair2', 'chair3', 'chair4']);
+    }
+
+    match /settings/{docId} {
+      allow read: if docId == "pins";
+      allow write: if docId == "pins" && isValidPins(incoming());
+    }
   }
 }

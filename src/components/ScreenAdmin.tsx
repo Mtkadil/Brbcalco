@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, RefreshCw, AlertTriangle, ShieldCheck, Download, Lock, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, RefreshCw, AlertTriangle, ShieldCheck, Download } from 'lucide-react';
 import AnimatedCounter from './AnimatedCounter';
 import { CHAIR_NAMES_MAP } from '../types';
 
@@ -9,37 +9,114 @@ interface ScreenAdminProps {
   histories?: { [key: string]: Array<{ id: string; amount: number; timestamp: string }> };
   onReset: () => Promise<void>;
   onBack: () => void;
-  onPasswordsChange?: (passwords: { [key: string]: string }) => Promise<void>;
-  currentPasswords?: { [key: string]: string };
+  pinsData: {
+    owner: string;
+    chair1: string;
+    chair2: string;
+    chair3: string;
+    chair4: string;
+  };
+  onUpdatePins: (newPins: {
+    owner: string;
+    chair1: string;
+    chair2: string;
+    chair3: string;
+    chair4: string;
+  }) => Promise<void>;
 }
 
-export default function ScreenAdmin({ 
-  totals, 
-  histories = {}, 
-  onReset, 
+export default function ScreenAdmin({
+  totals,
+  histories = {},
+  onReset,
   onBack,
-  onPasswordsChange,
-  currentPasswords = {}
+  pinsData,
+  onUpdatePins
 }: ScreenAdminProps) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [expandedChairs, setExpandedChairs] = useState<{ [key: string]: boolean }>({});
   const [showLinks, setShowLinks] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  
-  // Password management state
-  const [showPasswordSettings, setShowPasswordSettings] = useState(false);
-  const [passwordInputs, setPasswordInputs] = useState({
-    admin: currentPasswords.admin || 'admin123',
-    chair1: currentPasswords.chair1 || 'pass1',
-    chair2: currentPasswords.chair2 || 'pass2',
-    chair3: currentPasswords.chair3 || 'pass3',
-    chair4: currentPasswords.chair4 || 'pass4',
-  });
-  const [showPasswords, setShowPasswords] = useState<{ [key: string]: boolean }>({});
-  const [passwordError, setPasswordError] = useState('');
-  const [passwordSuccess, setPasswordSuccess] = useState('');
-  const [isSavingPasswords, setIsSavingPasswords] = useState(false);
+
+  // Local state for PIN inputs
+  const [localOwnerPin, setLocalOwnerPin] = useState(pinsData.owner);
+  const [localChair1Pin, setLocalChair1Pin] = useState(pinsData.chair1);
+  const [localChair2Pin, setLocalChair2Pin] = useState(pinsData.chair2);
+  const [localChair3Pin, setLocalChair3Pin] = useState(pinsData.chair3);
+  const [localChair4Pin, setLocalChair4Pin] = useState(pinsData.chair4);
+  const [isSavingPins, setIsSavingPins] = useState(false);
+  const [pinSaveSuccess, setPinSaveSuccess] = useState(false);
+  const [pinError, setPinError] = useState('');
+
+  // Keep local fields in-sync if remote database PINs are updated
+  useEffect(() => {
+    setLocalOwnerPin(pinsData.owner);
+    setLocalChair1Pin(pinsData.chair1);
+    setLocalChair2Pin(pinsData.chair2);
+    setLocalChair3Pin(pinsData.chair3);
+    setLocalChair4Pin(pinsData.chair4);
+  }, [pinsData]);
+
+  const handleSavePins = async () => {
+    setPinError('');
+    setPinSaveSuccess(false);
+
+    // Validate lengths
+    if (
+      localOwnerPin.length !== 4 ||
+      localChair1Pin.length !== 4 ||
+      localChair2Pin.length !== 4 ||
+      localChair3Pin.length !== 4 ||
+      localChair4Pin.length !== 4
+    ) {
+      setPinError('Tutti i PIN devono essere composti da esattamente 4 cifre.');
+      return;
+    }
+
+    // Validate they are only numbers
+    const isNumeric = (val: string) => /^\d+$/.test(val);
+    if (
+      !isNumeric(localOwnerPin) ||
+      !isNumeric(localChair1Pin) ||
+      !isNumeric(localChair2Pin) ||
+      !isNumeric(localChair3Pin) ||
+      !isNumeric(localChair4Pin)
+    ) {
+      setPinError('I PIN devono contenere solo numeri (0-9).');
+      return;
+    }
+
+    // Check for collisions/duplicates to avoid lockouts or ambiguous logins!
+    const pinsSet = new Set([
+      localOwnerPin,
+      localChair1Pin,
+      localChair2Pin,
+      localChair3Pin,
+      localChair4Pin
+    ]);
+    if (pinsSet.size < 5) {
+      setPinError('Campi duplicati! Ogni postazione deve avere un PIN univoco per evitare che una spia l\'altra.');
+      return;
+    }
+
+    setIsSavingPins(true);
+    try {
+      await onUpdatePins({
+        owner: localOwnerPin,
+        chair1: localChair1Pin,
+        chair2: localChair2Pin,
+        chair3: localChair3Pin,
+        chair4: localChair4Pin,
+      });
+      setPinSaveSuccess(true);
+      setTimeout(() => setPinSaveSuccess(false), 3000);
+    } catch (err) {
+      setPinError('Errore durante il salvataggio dei PIN.');
+    } finally {
+      setIsSavingPins(false);
+    }
+  };
 
   const getFullLink = (query: string) => {
     const origin = window.location.origin;
@@ -52,6 +129,7 @@ export default function ScreenAdmin({
       setCopiedKey(key);
       setTimeout(() => setCopiedKey(null), 2000);
     }).catch(() => {
+      // safe fallback if iframe constraints block navigator.clipboard
       const tempInput = document.createElement('input');
       tempInput.value = text;
       document.body.appendChild(tempInput);
@@ -63,45 +141,6 @@ export default function ScreenAdmin({
     });
   };
 
-  const handlePasswordInputChange = (key: string, value: string) => {
-    setPasswordInputs(prev => ({
-      ...prev,
-      [key]: value
-    }));
-    setPasswordError('');
-  };
-
-  const handleSavePasswords = async () => {
-    setPasswordError('');
-    setPasswordSuccess('');
-
-    // Validation
-    const passwordKeys = Object.keys(passwordInputs);
-    for (const key of passwordKeys) {
-      const pwd = passwordInputs[key as keyof typeof passwordInputs];
-      if (!pwd || pwd.length < 3) {
-        setPasswordError(`La password per ${key} deve essere almeno 3 caratteri.`);
-        return;
-      }
-    }
-
-    setIsSavingPasswords(true);
-    try {
-      if (onPasswordsChange) {
-        await onPasswordsChange(passwordInputs);
-      }
-      setPasswordSuccess('Password aggiornate con successo!');
-      setTimeout(() => {
-        setPasswordSuccess('');
-      }, 3000);
-    } catch (error) {
-      setPasswordError('Errore nel salvataggio delle password. Riprova.');
-      console.error(error);
-    } finally {
-      setIsSavingPasswords(false);
-    }
-  };
-
   const handleExportCSV = () => {
     const todayStr = new Date().toLocaleDateString('it-IT');
     const todayTimeStr = new Date().toLocaleTimeString('it-IT');
@@ -109,6 +148,7 @@ export default function ScreenAdmin({
     let csvContent = `BLOCK BARBER - Report Cassa\n`;
     csvContent += `Esportato il:;${todayStr} alle ${todayTimeStr}\n\n`;
     
+    // Summary Section
     csvContent += `RIASSUNTO INCASSI\n`;
     csvContent += `Sedia;Barbiere;Incasso Totale (€)\n`;
     [1, 2, 3, 4].forEach((num) => {
@@ -119,6 +159,7 @@ export default function ScreenAdmin({
     });
     csvContent += `TOTALE GENERALE;;${grandTotal}\n\n`;
     
+    // Detailed Transactions Section
     csvContent += `DETTAGLIO TRANSAZIONI\n`;
     csvContent += `Timestamp;Sedia;Barbiere;Importo (€)\n`;
     
@@ -140,6 +181,7 @@ export default function ScreenAdmin({
       csvContent += `Nessuna transazione registrata per la giornata.;;;\n`;
     }
 
+    // Convert to Blob with UTF-8 BOM so Excel opens Italian characters perfectly
     const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -269,128 +311,6 @@ export default function ScreenAdmin({
           );
         })}
 
-        {/* PASSWORD SETTINGS SECTION */}
-        <div className="bg-white/5 border border-white/5 rounded-2xl p-4 mt-6 text-left">
-          <button
-            type="button"
-            onClick={() => setShowPasswordSettings(!showPasswordSettings)}
-            className="w-full flex justify-between items-center text-[10px] uppercase tracking-widest text-[#8E8E93] font-semibold font-sans cursor-pointer focus:outline-none"
-          >
-            <span className="flex items-center gap-1.5">
-              <Lock className="w-4 h-4" />
-              Gestione Password
-            </span>
-            <span className="text-gold-primary">{showPasswordSettings ? 'Nascondi ▲' : 'Mostra ▼'}</span>
-          </button>
-
-          <AnimatePresence>
-            {showPasswordSettings && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.25, ease: 'easeInOut' }}
-                className="overflow-hidden mt-4 space-y-4 pt-4 border-t border-white/5"
-              >
-                {/* Error Message */}
-                {passwordError && (
-                  <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-red-400 text-[11px]">
-                    {passwordError}
-                  </div>
-                )}
-
-                {/* Success Message */}
-                {passwordSuccess && (
-                  <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 text-emerald-400 text-[11px]">
-                    ✓ {passwordSuccess}
-                  </div>
-                )}
-
-                <p className="text-[10px] text-stone-400 font-sans leading-relaxed">
-                  Modifica le password di accesso per il pannello admin e per ogni postazione. Le password devono essere almeno 3 caratteri.
-                </p>
-
-                {/* Admin Password */}
-                <div className="space-y-2 pb-3 border-b border-white/5">
-                  <label className="text-[9px] uppercase tracking-wider text-red-400/80 font-bold block">
-                    🔐 Password Amministratore
-                  </label>
-                  <div className="flex gap-2">
-                    <div className="flex-1 relative">
-                      <input
-                        type={showPasswords.admin ? 'text' : 'password'}
-                        value={passwordInputs.admin}
-                        onChange={(e) => handlePasswordInputChange('admin', e.target.value)}
-                        className="w-full bg-black/40 border border-white/5 rounded-xl px-3 py-2 text-[11px] text-white placeholder:text-stone-500 focus:border-gold-primary/50 focus:ring-1 focus:ring-gold-primary/30 outline-none transition-all"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPasswords(prev => ({ ...prev, admin: !prev.admin }))}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-500 hover:text-white transition-colors"
-                      >
-                        {showPasswords.admin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Chair Passwords */}
-                <div className="space-y-3">
-                  <label className="text-[9px] uppercase tracking-wider text-emerald-400/80 font-bold block">
-                    Password Postazioni
-                  </label>
-                  {[1, 2, 3, 4].map((num) => {
-                    const key = `chair${num}`;
-                    const chairKey = `chair${num}` as keyof typeof passwordInputs;
-                    return (
-                      <div key={num} className="flex items-center gap-2">
-                        <span className="text-[10px] text-stone-300 font-medium w-24 shrink-0 text-left">
-                          {CHAIR_NAMES_MAP[num]}:
-                        </span>
-                        <div className="flex-1 relative">
-                          <input
-                            type={showPasswords[key] ? 'text' : 'password'}
-                            value={passwordInputs[chairKey]}
-                            onChange={(e) => handlePasswordInputChange(key, e.target.value)}
-                            className="w-full bg-black/40 border border-white/5 rounded-xl px-3 py-2 text-[11px] text-white placeholder:text-stone-500 focus:border-gold-primary/50 focus:ring-1 focus:ring-gold-primary/30 outline-none transition-all"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPasswords(prev => ({ ...prev, [key]: !prev[key] }))}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-500 hover:text-white transition-colors"
-                          >
-                            {showPasswords[key] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Save Button */}
-                <button
-                  type="button"
-                  onClick={handleSavePasswords}
-                  disabled={isSavingPasswords}
-                  className="w-full bg-gold-primary hover:bg-gold-primary/90 disabled:bg-gold-primary/50 text-black font-semibold py-2.5 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 text-sm mt-4"
-                >
-                  {isSavingPasswords ? (
-                    <>
-                      <div className="w-4 h-4 rounded-full border-2 border-black/30 border-t-black animate-spin" />
-                      Salvataggio...
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="w-4 h-4" />
-                      Salva Password
-                    </>
-                  )}
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
         {/* Isolated Device Links section for owner */}
         <div className="bg-white/5 border border-white/5 rounded-2xl p-4 mt-6 text-left">
           <button
@@ -411,10 +331,6 @@ export default function ScreenAdmin({
                 transition={{ duration: 0.25, ease: 'easeInOut' }}
                 className="overflow-hidden mt-4 space-y-4 pt-4 border-t border-white/5"
               >
-                <p className="text-[10px] text-stone-400 font-sans leading-relaxed">
-                  Condividi link differenti con i tuoi collaboratori e i tablet delle poltrone per isolare la sicurezza mantenendo la sincronizzazione attiva in tempo reale.
-                </p>
-
                 {/* Staff Selection Link */}
                 <div className="space-y-1">
                   <span className="text-[9px] uppercase tracking-wider text-amber-500/80 font-bold block">
@@ -495,6 +411,120 @@ export default function ScreenAdmin({
           </AnimatePresence>
         </div>
 
+        {/* Gestione PIN di Sicurezza */}
+        <div className="bg-white/5 border border-white/5 rounded-2xl p-4 mt-6 text-left">
+          <div className="flex justify-between items-center text-[10px] uppercase tracking-widest text-[#8E8E93] font-semibold font-sans mb-3 border-b border-white/5 pb-2">
+            <span>⚙️ Impostazione Codici PIN</span>
+            <span className="text-stone-500 font-mono text-[9px]">Protezione Cassa</span>
+          </div>
+
+
+
+          <div className="space-y-3 font-sans">
+            {/* Owner PIN */}
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <span className="text-[11px] text-stone-300 font-medium block">👑 Proprietario (Admin)</span>
+                <span className="text-[9px] text-stone-500 font-mono">Accesso totale completo</span>
+              </div>
+              <input
+                type="text"
+                pattern="[0-9]*"
+                maxLength={4}
+                value={localOwnerPin}
+                onChange={(e) => setLocalOwnerPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                className="w-20 bg-black/40 border border-white/10 text-center font-mono text-sm uppercase rounded-xl py-1 px-2 text-gold-primary tracking-[0.2em] outline-none focus:border-gold-primary"
+              />
+            </div>
+
+            {/* Chair 1 PIN */}
+            <div className="flex items-center justify-between gap-3 pt-2.5 border-t border-white/5">
+              <div>
+                <span className="text-[11px] text-stone-300 font-medium block">💈 Sedia O1 &bull; Amine</span>
+                <span className="text-[9px] text-stone-500 font-mono">Sedia 01</span>
+              </div>
+              <input
+                type="text"
+                pattern="[0-9]*"
+                maxLength={4}
+                value={localChair1Pin}
+                onChange={(e) => setLocalChair1Pin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                className="w-20 bg-black/40 border border-white/10 text-center font-mono text-sm uppercase rounded-xl py-1 px-2 text-stone-200 tracking-[0.2em] outline-none focus:border-gold-primary"
+              />
+            </div>
+
+            {/* Chair 2 PIN */}
+            <div className="flex items-center justify-between gap-3 pt-2.5 border-t border-white/5">
+              <div>
+                <span className="text-[11px] text-stone-300 font-medium block">💈 Sedia O2 &bull; Maher</span>
+                <span className="text-[9px] text-stone-500 font-mono">Sedia 02</span>
+              </div>
+              <input
+                type="text"
+                pattern="[0-9]*"
+                maxLength={4}
+                value={localChair2Pin}
+                onChange={(e) => setLocalChair2Pin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                className="w-20 bg-black/40 border border-white/10 text-center font-mono text-sm uppercase rounded-xl py-1 px-2 text-stone-200 tracking-[0.2em] outline-none focus:border-gold-primary"
+              />
+            </div>
+
+            {/* Chair 3 PIN */}
+            <div className="flex items-center justify-between gap-3 pt-2.5 border-t border-white/5">
+              <div>
+                <span className="text-[11px] text-stone-300 font-medium block">💈 Sedia O3 &bull; Adil</span>
+                <span className="text-[9px] text-stone-500 font-mono">Sedia 03</span>
+              </div>
+              <input
+                type="text"
+                pattern="[0-9]*"
+                maxLength={4}
+                value={localChair3Pin}
+                onChange={(e) => setLocalChair3Pin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                className="w-20 bg-black/40 border border-white/10 text-center font-mono text-sm uppercase rounded-xl py-1 px-2 text-stone-200 tracking-[0.2em] outline-none focus:border-gold-primary"
+              />
+            </div>
+
+            {/* Chair 4 PIN */}
+            <div className="flex items-center justify-between gap-3 pt-2.5 border-t border-white/5">
+              <div>
+                <span className="text-[11px] text-stone-300 font-medium block">💈 Sedia O4 &bull; Kevin</span>
+                <span className="text-[9px] text-stone-500 font-mono">Sedia 04</span>
+              </div>
+              <input
+                type="text"
+                pattern="[0-9]*"
+                maxLength={4}
+                value={localChair4Pin}
+                onChange={(e) => setLocalChair4Pin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                className="w-20 bg-black/40 border border-white/10 text-center font-mono text-sm uppercase rounded-xl py-1 px-2 text-stone-200 tracking-[0.2em] outline-none focus:border-gold-primary"
+              />
+            </div>
+          </div>
+
+          {/* Feedback & Save Actions */}
+          <div className="mt-4 pt-3 border-t border-white/5 flex flex-col gap-2">
+            {pinError && (
+              <p className="text-[10px] text-red-400 font-sans flex items-center gap-1 font-semibold leading-normal">
+                ⚠️ {pinError}
+              </p>
+            )}
+            {pinSaveSuccess && (
+              <p className="text-[10px] text-emerald-400 font-sans flex items-center gap-1 font-semibold leading-normal animate-pulse">
+                ✓ I nuovi PIN sono stati salvati e applicati su Cloud Database!
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={handleSavePins}
+              disabled={isSavingPins}
+              className="w-full bg-gold-primary hover:bg-gold-light disabled:bg-gold-primary/30 text-black py-2 rounded-xl text-xs font-bold transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 active:scale-95 duration-100 uppercase tracking-widest"
+            >
+              {isSavingPins ? 'Salvataggio...' : 'Salva PIN Modificati'}
+            </button>
+          </div>
+        </div>
+
         {/* Grand Total section aligned with mockup styling */}
         <div className="bg-white/5 border border-white/10 p-5 rounded-2xl mt-8 flex flex-col sm:flex-row gap-4 justify-between sm:items-center shadow-[0_4px_25px_rgba(0,0,0,0.3)]">
           <div>
@@ -507,7 +537,7 @@ export default function ScreenAdmin({
             <button
               type="button"
               onClick={handleExportCSV}
-              className="bg-gold-primary/10 hover:bg-gold-primary/20 text-gold-primary border border-gold-primary/20 hover:border-gold-primary/40 px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 text-xs font-semibold"
+              className="bg-gold-primary/10 hover:bg-gold-primary/20 text-gold-primary border border-gold-primary/20 hover:border-gold-primary/40 px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer font-bold text-[10px] uppercase tracking-[0.22em] flex-1 sm:flex-initial animate-fade-in"
             >
               <Download className="w-3.5 h-3.5" />
               Esporta CSV
@@ -515,7 +545,7 @@ export default function ScreenAdmin({
             <button
               type="button"
               onClick={() => setShowConfirm(true)}
-              className="border border-red-500/30 text-red-500/80 hover:text-white hover:bg-red-500/10 px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 text-xs font-semibold"
+              className="border border-red-500/30 text-red-500/80 hover:text-white hover:bg-red-500/10 px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer font-bold text-[10px] uppercase tracking-[0.22em] flex-1 sm:flex-initial"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               Reset
@@ -531,10 +561,10 @@ export default function ScreenAdmin({
         className="text-[#8E8E93] hover:text-gold-primary text-xs tracking-wider uppercase flex items-center justify-center gap-1.5 mx-auto transition-colors cursor-pointer font-sans mt-8"
       >
         <ArrowLeft className="w-4 h-4" />
-        Logout
+        Torna alla Home
       </button>
 
-      {/* Custom Confirmation Modal overlay */}
+      {/* Custom Confirmation Modal overlay (Avoids blocking window.confirm issues in iframe) */}
       <AnimatePresence>
         {showConfirm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/60 backdrop-blur-md">
