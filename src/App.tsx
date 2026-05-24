@@ -5,18 +5,14 @@ import { db, handleFirestoreError } from './firebase';
 import { OperationType, ScreenType } from './types';
 
 // Screens
-import ScreenLogin from './components/ScreenLogin';
 import ScreenHome from './components/ScreenHome';
 import ScreenSelection from './components/ScreenSelection';
 import ScreenChair from './components/ScreenChair';
 import ScreenAdmin from './components/ScreenAdmin';
-import { PASSWORD_CONFIG } from './components/ScreenLogin';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<ScreenType>('login-screen');
+  const [currentScreen, setCurrentScreen] = useState<ScreenType>('home-screen');
   const [selectedChair, setSelectedChair] = useState<number | null>(null);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [authError, setAuthError] = useState('');
   
   const [chairsData, setChairsData] = useState<{
     [key: string]: {
@@ -95,54 +91,23 @@ export default function App() {
     const modeParam = params.get('mode');
     
     const isOwner = roleParam === 'owner' || modeParam === 'admin';
+    setIsAdminMode(isOwner);
+
     if (isOwner) {
-      setIsAdminMode(true);
       setCurrentScreen('admin-dashboard');
     } else if (chairParam && ['1', '2', '3', '4'].includes(chairParam)) {
       const num = parseInt(chairParam, 10);
       setSelectedChair(num);
       setCurrentScreen('chair-screen');
+    } else {
+      // Operators / barbiere are routed directly to selection-screen to completely isolate landing from owner choices
+      setCurrentScreen('selection-screen');
     }
   }, []);
-
-  // Handle password authentication
-  const handlePasswordSubmit = async (password: string) => {
-    setIsAuthenticating(true);
-    setAuthError('');
-
-    // Simulate authentication delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Check if admin password
-    if (password === PASSWORD_CONFIG.admin) {
-      setIsAdminMode(true);
-      setCurrentScreen('admin-dashboard');
-      window.history.pushState({}, '', '?role=owner');
-      setIsAuthenticating(false);
-      return;
-    }
-
-    // Check if chair password
-    for (let i = 1; i <= 4; i++) {
-      const chairKey = `chair${i}` as keyof typeof PASSWORD_CONFIG;
-      if (password === PASSWORD_CONFIG[chairKey]) {
-        setSelectedChair(i);
-        setCurrentScreen('chair-screen');
-        window.history.pushState({}, '', `?chair=${i}`);
-        setIsAuthenticating(false);
-        return;
-      }
-    }
-
-    // Invalid password
-    setAuthError('Password non valida. Riprova.');
-    setIsAuthenticating(false);
-  };
 
   // Navigation controller with browser state sync
   const handleNavigate = (screen: ScreenType) => {
     setCurrentScreen(screen);
-    setAuthError('');
     if (screen === 'home-screen') {
       setSelectedChair(null);
       if (isAdminMode) {
@@ -150,10 +115,6 @@ export default function App() {
       } else {
         window.history.pushState({}, '', window.location.pathname);
       }
-    } else if (screen === 'login-screen') {
-      setSelectedChair(null);
-      setIsAdminMode(false);
-      window.history.pushState({}, '', window.location.pathname);
     }
   };
 
@@ -253,42 +214,30 @@ export default function App() {
       <div className="w-full max-w-2xl mx-auto flex-1 flex flex-col justify-between py-4 relative z-10">
         
         {/* Header Section */}
-        {currentScreen !== 'login-screen' && (
-          <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-8">
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold tracking-[0.2em] uppercase mb-1 font-serif text-gold-primary">
-                The Prince
-              </h1>
-              <p className="text-[10px] tracking-[0.4em] uppercase text-[#8E8E93]">
-                Luxury Cash Live &bull; Salon Management
-              </p>
+        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-black tracking-[0.1em] uppercase mb-1 font-sans text-gold-primary">
+              Momo Block Barber
+            </h1>
+            <p className="text-[9px] tracking-[0.3em] uppercase text-[#8E8E93]">
+              Luxury Cash Live &bull; Management App
+            </p>
+          </div>
+          <div className="flex gap-3 w-full sm:w-auto">
+            <div className="bg-white/5 border border-white/10 backdrop-blur-md px-4 py-2 rounded-xl flex items-center gap-2.5 flex-1 sm:flex-initial">
+              <div className="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_8px_#22c55e]"></div>
+              <span className="text-[9px] uppercase tracking-widest text-[#8E8E93] font-semibold">Live Sync Active</span>
             </div>
-            <div className="flex gap-3 w-full sm:w-auto">
-              <div className="bg-white/5 border border-white/10 backdrop-blur-md px-4 py-2 rounded-xl flex items-center gap-2.5 flex-1 sm:flex-initial">
-                <div className="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_8px_#22c55e]"></div>
-                <span className="text-[9px] uppercase tracking-widest text-[#8E8E93] font-semibold">Live Sync Active</span>
-              </div>
-              <div className="bg-white/5 border border-white/10 backdrop-blur-md px-4 py-2 rounded-xl text-center flex-1 sm:flex-initial">
-                <span className="text-[9px] uppercase tracking-widest text-[#8E8E93] block">Today</span>
-                <p className="font-semibold text-xs tracking-wider">{formattedHeaderDate}</p>
-              </div>
+            <div className="bg-white/5 border border-white/10 backdrop-blur-md px-4 py-2 rounded-xl text-center flex-1 sm:flex-initial">
+              <span className="text-[9px] uppercase tracking-widest text-[#8E8E93] block">Today</span>
+              <p className="font-semibold text-xs tracking-wider">{formattedHeaderDate}</p>
             </div>
-          </header>
-        )}
+          </div>
+        </header>
 
         {/* Primary Container card styling with custom boundaries */}
-        <div className="w-full max-w-md mx-auto bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 md:p-8 shadow-[0_12px_45px_rgba(0,0,0,0.6)] min-h-[460px] flex flex-col justify-center">
+        <div className="w-full max-w-md mx-auto bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 md:p-8 shadow-[0_12px_45px_rgba(0,0,0,0.6)] min-h-[460px] flex flex-col justify-center my-auto">
           <AnimatePresence mode="wait">
-            {currentScreen === 'login-screen' && (
-              <div key="login" className="w-full">
-                <ScreenLogin
-                  onPasswordSubmit={handlePasswordSubmit}
-                  isLoading={isAuthenticating}
-                  error={authError}
-                />
-              </div>
-            )}
-
             {currentScreen === 'home-screen' && (
               <div key="home" className="w-full">
                 <ScreenHome
@@ -319,7 +268,9 @@ export default function App() {
                     if (isAdminMode) {
                       handleNavigate('admin-dashboard');
                     } else {
-                      handleNavigate('login-screen');
+                      setSelectedChair(null);
+                      setCurrentScreen('selection-screen');
+                      window.history.pushState({}, '', window.location.pathname);
                     }
                   }}
                 />
@@ -338,7 +289,7 @@ export default function App() {
                     return acc;
                   }, {} as { [key: string]: Array<{ id: string; amount: number; timestamp: string }> })}
                   onReset={handleResetDailyData}
-                  onBack={() => handleNavigate('login-screen')}
+                  onBack={() => handleNavigate('home-screen')}
                 />
               </div>
             )}
@@ -346,19 +297,15 @@ export default function App() {
         </div>
 
         {/* Bottom Status Bar */}
-        {currentScreen !== 'login-screen' && (
-          <footer className="flex flex-col sm:flex-row justify-between items-center gap-2 text-[9px] uppercase tracking-[0.3em] text-[#8E8E93] border-t border-white/5 pt-6 mt-8">
-            <div>Firmware: v2.4.0-lux</div>
-            <div className="flex gap-4">
-              <span>Device ID: PRINCE_01_X</span>
-              <span className="hidden sm:inline">&bull;</span>
-              <span>Encrypted Node Connection</span>
-            </div>
-            <div className="text-[#D4AF37] font-semibold">
-              {isAdminMode ? 'Authenticated: Proprietario' : 'Authenticated: Operatore'}
-            </div>
-          </footer>
-        )}
+        <footer className="flex flex-col sm:flex-row justify-between items-center gap-2 text-[9px] uppercase tracking-[0.3em] text-[#8E8E93] border-t border-white/5 pt-6 mt-8">
+          <div>Firmware: v2.4.0-lux</div>
+          <div className="flex gap-4">
+            <span>Device ID: PRINCE_01_X</span>
+            <span className="hidden sm:inline">&bull;</span>
+            <span>Encrypted Node Connection</span>
+          </div>
+          <div className="text-[#D4AF37] font-semibold">Authenticated: Proprietario</div>
+        </footer>
       </div>
     </div>
   );
